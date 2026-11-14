@@ -1,0 +1,361 @@
+import os
+import subprocess
+
+html_content = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+<style>
+@page {
+    size: A4 portrait;
+    margin: 20mm 20mm 20mm 20mm;
+}
+body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11pt;
+    line-height: 1.35;
+    color: #000000;
+    background-color: #ffffff;
+    margin: 0;
+    padding: 0;
+}
+.header-box {
+    text-align: center;
+    margin-bottom: 18px;
+}
+.header-box h1 {
+    font-size: 16pt;
+    font-weight: bold;
+    margin: 0 0 6px 0;
+    text-transform: uppercase;
+}
+.header-box p {
+    font-size: 11pt;
+    margin: 2px 0;
+}
+.divider {
+    border-bottom: 1px solid #000;
+    margin: 12px 0 16px 0;
+}
+.project-title {
+    font-size: 12pt;
+    font-weight: bold;
+    margin: 12px 0 16px 0;
+}
+h2 {
+    font-size: 12pt;
+    font-weight: bold;
+    margin: 16px 0 6px 0;
+    border-bottom: none;
+    page-break-after: avoid;
+}
+h3 {
+    font-size: 11pt;
+    font-weight: bold;
+    margin: 12px 0 4px 0;
+    page-break-after: avoid;
+}
+p {
+    font-size: 11pt;
+    margin: 0 0 8px 0;
+    text-align: justify;
+}
+ul {
+    margin: 4px 0 10px 20px;
+    padding: 0;
+}
+li {
+    font-size: 11pt;
+    margin-bottom: 4px;
+}
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+}
+th, td {
+    border: 1px solid #000000;
+    padding: 5px 8px;
+    text-align: left;
+}
+th {
+    background-color: #eaeaea;
+    font-weight: bold;
+}
+tr:nth-child(even) {
+    background-color: #fcfcfc;
+}
+.mono-box {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 8.5pt;
+    border: 1px solid #666;
+    padding: 8px 12px;
+    background: #fafafa;
+    white-space: pre;
+    line-height: 1.25;
+    margin: 10px 0;
+    page-break-inside: avoid;
+}
+.figure {
+    text-align: center;
+    margin: 16px 0;
+    page-break-inside: avoid;
+}
+.figure img {
+    max-width: 95%;
+    height: auto;
+    border: 1px solid #ccc;
+}
+.figure-caption {
+    font-size: 9.5pt;
+    font-style: italic;
+    margin-top: 4px;
+}
+</style>
+</head>
+<body>
+
+<div class="header-box">
+    <h1>Project Report</h1>
+    <p><b>Course:</b> Advanced Computer Vision (CS107203CS) &mdash; Unit 3</p>
+    <p><b>Assignment:</b> Assignment B: Build a Reproducible Segmentation Experiment</p>
+    <p><b>Student:</b> Ishant Kumar Ladekar &nbsp;&nbsp;|&nbsp;&nbsp; <b>Roll Number:</b> 23115043</p>
+</div>
+
+<div class="divider"></div>
+
+<div class="project-title">
+    Project Title: Empirical Evaluation of Bottleneck Dilated Convolutions in Modest Encoder-Decoder Architectures for Semantic Pedestrian Segmentation
+</div>
+
+<h2>1. Introduction</h2>
+<p>
+Semantic segmentation is a dense pixel-level classification task where every pixel in an input image <b>I</b> &isin; &reals;<sup>H &times; W &times; 3</sup> is assigned a discrete semantic category label y &isin; {0, 1, ..., C-1}. In urban scene analysis and autonomous robotics, segmenting foreground pedestrians from heterogeneous background clutter is a foundational perception primitive.
+</p>
+<p>
+A central challenge in convolutional segmentation models is the tension between spatial resolution preservation and receptive field expansion. Standard convolutional pooling cascades downsample spatial dimensions to capture wider context, sacrificing boundary delineation. Conversely, maintaining high spatial dimensions without aggressive downsampling restricts the effective receptive field (ERF), preventing the network from resolving large, spatially continuous objects such as human torsos and limbs.
+</p>
+<p>
+This project delivers a strictly controlled, fully reproducible semantic segmentation experiment conforming to the requirements of Assignment B (CS107203CS Unit 3). We formulate a formal data contract on the public Penn-Fudan Pedestrian Database, establish a modest 4-stage U-Net encoder-decoder baseline, introduce a single controlled architectural change&mdash;dilated (atrous) convolutions within the bottleneck stage&mdash;and evaluate both models on identical data splits and training schedules. We measure per-class IoU, mean IoU (mIoU), Dice coefficient, parameter counts, inference latency under controlled CPU conditions, and document concrete failure modes alongside an explicit delineation of what this empirical study does not establish.
+</p>
+
+<h2>2. Background Study</h2>
+
+<h3>2.1 Fully Convolutional Networks and Encoder-Decoder Topologies</h3>
+<p>
+Long, Shelhamer, and Darrell (2015) introduced Fully Convolutional Networks (FCNs), replacing fully connected layers with convolutions and using bilinear upsampling to produce dense spatial outputs. Ronneberger et al. (2015) refined this into the U-Net topology, introducing symmetric contracting (encoder) and expanding (decoder) paths bridged by lateral skip connections. The skip connections concatenate high-resolution shallow feature maps directly with upsampled semantic feature maps, compensating for spatial information lost during successive pooling operations.
+</p>
+
+<h3>2.2 Receptive Field Mechanics and Dilemmas</h3>
+<p>
+For a standard 2D convolution with kernel size k, stride s=1, and padding p, the receptive field RF<sub>l</sub> at layer l grows linearly:
+RF<sub>l</sub> = RF<sub>l-1</sub> + (k<sub>l</sub> - 1) &middot; S<sub>l-1</sub>, where S<sub>l-1</sub> is the cumulative stride of preceding layers.
+In modest architectures with limited depth and compute budgets, the ERF at the bottleneck often fails to encompass entire objects. When feature representations lack sufficient spatial context, the network exhibits severe boundary ambiguity and false-positive segmentations on background structures that share local textural similarity with pedestrians (e.g., vertical tree trunks, pillars, and doorways).
+</p>
+
+<h3>2.3 Dilated (Atrous) Convolutions</h3>
+<p>
+To expand the receptive field without increasing parameter counts or downsampling feature resolutions, Holschneider et al. (1987) and Yu &amp; Koltun (2016) proposed dilated convolutions (also termed <i>algorithme &agrave; trous</i>). For a 2D discrete signal f[<b>p</b>] and filter kernel w[<b>t</b>] with domain &Omega;, a dilated convolution with dilation rate d is defined as:
+(f *<sub>d</sub> w)[<b>p</b>] = &sum;<sub><b>t</b> &isin; &Omega;</sub> f[<b>p</b> + d &middot; <b>t</b>] w[<b>t</b>].
+</p>
+<p>
+When d=1, this operation degenerates to standard convolution. When d &gt; 1, the kernel introduces d - 1 spaces between tap elements, expanding the effective filter footprint to k' = d(k - 1) + 1. For a 3&times;3 kernel: d=1 yields k'=3 (3&times;3 footprint), d=2 yields k'=5 (5&times;5 footprint), and d=4 yields k'=9 (9&times;9 footprint). Crucially, the number of learnable parameters remains strictly invariant (k &times; k &times; C<sub>in</sub> &times; C<sub>out</sub>), providing a rigorous mechanism for controlled experimentation with a strictly matched parameter budget.
+</p>
+
+<h2>3. Methodology</h2>
+
+<h3>3.1 Data Contract and Preprocessing Protocol</h3>
+<p>
+We execute the benchmark on the public Penn-Fudan Database for Pedestrian Detection and Segmentation (Wang et al., 2007).
+</p>
+<ul>
+    <li><b>Class IDs:</b> Class 0: Background (bg), Class 1: Pedestrian (pedestrian).</li>
+    <li><b>Ignored Labels:</b> None. The ground truth masks contain pixel-accurate human silhouettes; instance masks are mapped to binary semantic ground truth (M &ge; 1 &rarr; 1, M = 0 &rarr; 0).</li>
+    <li><b>Dataset Partitioning:</b> Total 170 images partitioned using a fixed deterministic pseudo-random seed (seed = 42): Training Split = 120 images (70.6%), Validation Split = 25 images (14.7%), Held-out Test Split = 25 images (14.7%).</li>
+    <li><b>Image &amp; Mask Transforms:</b> Target canonical resolution of 128 &times; 128 pixels. Bilinear interpolation for images, nearest-neighbor interpolation for masks. ImageNet channel normalization (&mu; = [0.485, 0.456, 0.406], &sigma; = [0.229, 0.224, 0.225]). Training augmentation includes joint random horizontal flip (p=0.5), joint slight rotation (-10 to +10 degrees), and photometric color jitter (brightness and contrast factors in [0.85, 1.15]).</li>
+</ul>
+
+<h3>3.2 Baseline Architecture (Modest U-Net)</h3>
+<p>The baseline model is a 4-stage symmetrical encoder-decoder network:</p>
+<p>
+1. <b>Encoder Stage 1:</b> Two 3&times;3 convolutions (3 &rarr; 32 &rarr; 32), BatchNorm, ReLU followed by 2&times;2 MaxPool.<br>
+2. <b>Encoder Stage 2:</b> Two 3&times;3 convolutions (32 &rarr; 64 &rarr; 64), BatchNorm, ReLU followed by 2&times;2 MaxPool.<br>
+3. <b>Encoder Stage 3:</b> Two 3&times;3 convolutions (64 &rarr; 128 &rarr; 128), BatchNorm, ReLU followed by 2&times;2 MaxPool.<br>
+4. <b>Bottleneck:</b> Two standard 3&times;3 convolutions (128 &rarr; 256 &rarr; 256, dilation d=1, padding p=1), BatchNorm, ReLU. Output resolution: 16 &times; 16.<br>
+5. <b>Decoder Stage 3:</b> Bilinear upsampling (16&times;16 &rarr; 32&times;32), 1&times;1 projection (256 &rarr; 128), skip concatenation with Encoder Stage 3 (128 + 128 = 256), followed by two 3&times;3 convolutions (256 &rarr; 128 &rarr; 128).<br>
+6. <b>Decoder Stage 2:</b> Bilinear upsampling (32&times;32 &rarr; 64&times;64), 1&times;1 projection (128 &rarr; 64), skip concatenation with Encoder Stage 2 (64 + 64 = 128), followed by two 3&times;3 convolutions (128 &rarr; 64 &rarr; 64).<br>
+7. <b>Decoder Stage 1:</b> Bilinear upsampling (64&times;64 &rarr; 128&times;128), 1&times;1 projection (64 &rarr; 32), skip concatenation with Encoder Stage 1 (32 + 32 = 64), followed by two 3&times;3 convolutions (64 &rarr; 32 &rarr; 32).<br>
+8. <b>Classifier Head:</b> 1&times;1 convolution (32 &rarr; 2) mapping to raw segmentation logits.
+</p>
+
+<h3>3.3 Controlled Change: Dilated Bottleneck</h3>
+<p>
+In strict accordance with Task 3 of the assignment specification ("Change only one mechanism... Keep the comparison budget explicit"), we isolate dilation as the sole independent variable. The baseline bottleneck convolutions (d=1, p=1) are replaced by a cascaded atrous block: Conv Bottleneck 1 has 3&times;3 kernel, 128 &rarr; 256, dilation d<sub>1</sub>=2, padding p<sub>1</sub>=2; Conv Bottleneck 2 has 3&times;3 kernel, 256 &rarr; 256, dilation d<sub>2</sub>=4, padding p<sub>2</sub>=4. Because padding equals dilation, output spatial dimensions remain 16 &times; 16. The parameter count is strictly identical (0.00% overhead).
+</p>
+
+<h3>3.4 Proposed Architectural Diagram</h3>
+<div class="mono-box">INPUT IMAGE [B, 3, 128, 128]
+  |--> ENCODER 1: DoubleConv(3 -> 32 -> 32) --------> [Skip 1: B, 32, 128, 128]
+         | MaxPool (2x2)
+         v
+  |--> ENCODER 2: DoubleConv(32 -> 64 -> 64) -------> [Skip 2: B, 64, 64, 64]
+         | MaxPool (2x2)
+         v
+  |--> ENCODER 3: DoubleConv(64 -> 128 -> 128) -----> [Skip 3: B, 128, 32, 32]
+         | MaxPool (2x2)
+         v
+     BOTTLENECK STAGE [B, 256, 16, 16]
+     Baseline: Conv(128->256, d=1) -> Conv(256->256, d=1)
+     Dilated:  Conv(128->256, d=2) -> Conv(256->256, d=4)
+         |
+         v
+     DECODER 3: Bilinear(2x) + Conv1x1(256->128) + Concat Skip 3 -> DoubleConv [B, 128, 32, 32]
+         |
+         v
+     DECODER 2: Bilinear(2x) + Conv1x1(128->64)  + Concat Skip 2 -> DoubleConv [B, 64, 64, 64]
+         |
+         v
+     DECODER 1: Bilinear(2x) + Conv1x1(64->32)   + Concat Skip 1 -> DoubleConv [B, 32, 128, 128]
+         |
+         v
+     HEAD: Conv2d(32 -> 2, kernel=1) -> OUTPUT LOGITS [B, 2, 128, 128]</div>
+
+<h3>3.5 Layer Parameter Breakdown</h3>
+<table>
+    <tr><th>Block</th><th>Layer / Operation</th><th>In</th><th>Out</th><th>Kernel</th><th>Stride</th><th>Dilation</th><th>Parameters</th></tr>
+    <tr><td>Encoder 1</td><td>Conv2d + BN + ReLU</td><td>3</td><td>32</td><td>3&times;3</td><td>1</td><td>1</td><td>864</td></tr>
+    <tr><td>Encoder 1</td><td>Conv2d + BN + ReLU</td><td>32</td><td>32</td><td>3&times;3</td><td>1</td><td>1</td><td>9,216</td></tr>
+    <tr><td>Encoder 2</td><td>Conv2d + BN + ReLU</td><td>32</td><td>64</td><td>3&times;3</td><td>1</td><td>1</td><td>18,432</td></tr>
+    <tr><td>Encoder 2</td><td>Conv2d + BN + ReLU</td><td>64</td><td>64</td><td>3&times;3</td><td>1</td><td>1</td><td>36,864</td></tr>
+    <tr><td>Encoder 3</td><td>Conv2d + BN + ReLU</td><td>64</td><td>128</td><td>3&times;3</td><td>1</td><td>1</td><td>73,728</td></tr>
+    <tr><td>Encoder 3</td><td>Conv2d + BN + ReLU</td><td>128</td><td>128</td><td>3&times;3</td><td>1</td><td>1</td><td>147,456</td></tr>
+    <tr><td>Bottleneck</td><td>Baseline Conv 1</td><td>128</td><td>256</td><td>3&times;3</td><td>1</td><td>d=1</td><td>294,912</td></tr>
+    <tr><td>Bottleneck</td><td>Dilated Conv 1</td><td>128</td><td>256</td><td>3&times;3</td><td>1</td><td>d=2</td><td>294,912</td></tr>
+    <tr><td>Bottleneck</td><td>Baseline Conv 2</td><td>256</td><td>256</td><td>3&times;3</td><td>1</td><td>d=1</td><td>589,824</td></tr>
+    <tr><td>Bottleneck</td><td>Dilated Conv 2</td><td>256</td><td>256</td><td>3&times;3</td><td>1</td><td>d=4</td><td>589,824</td></tr>
+    <tr><td>Decoder 3</td><td>Conv1x1 Proj</td><td>256</td><td>128</td><td>1&times;1</td><td>1</td><td>1</td><td>32,768</td></tr>
+    <tr><td>Decoder 3</td><td>DoubleConv</td><td>256</td><td>128</td><td>3&times;3</td><td>1</td><td>1</td><td>442,368</td></tr>
+    <tr><td>Decoder 2</td><td>Conv1x1 Proj</td><td>128</td><td>64</td><td>1&times;1</td><td>1</td><td>1</td><td>8,192</td></tr>
+    <tr><td>Decoder 2</td><td>DoubleConv</td><td>128</td><td>64</td><td>3&times;3</td><td>1</td><td>1</td><td>110,592</td></tr>
+    <tr><td>Decoder 1</td><td>Conv1x1 Proj</td><td>64</td><td>32</td><td>1&times;1</td><td>1</td><td>1</td><td>2,048</td></tr>
+    <tr><td>Decoder 1</td><td>DoubleConv</td><td>64</td><td>32</td><td>3&times;3</td><td>1</td><td>1</td><td>27,648</td></tr>
+    <tr><td>Head</td><td>Conv2d (Classifier)</td><td>32</td><td>2</td><td>1&times;1</td><td>1</td><td>1</td><td>66</td></tr>
+    <tr><td>BatchNorm</td><td>Scale + Shift parameters</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>2,814</td></tr>
+    <tr style="font-weight: bold; background: #e0e0e0;"><td>Total Parameters</td><td>Both Architectures Strictly Matched</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>1,797,794</td></tr>
+</table>
+
+<h3>3.6 Loss Function and Optimization Setup</h3>
+<p>
+Training optimizes a combined Cross-Entropy and Soft Dice loss function: Loss<sub>total</sub> = 0.5 &middot; Loss<sub>CE</sub> + 0.5 &middot; Loss<sub>Dice</sub>.
+Optimizer is AdamW (lr=1e-3, weight_decay=1e-4) paired with a Cosine Annealing learning rate schedule down to &eta;<sub>min</sub>=1e-5 over 5 epochs with batch size 8.
+</p>
+
+<h2>4. Results and Interpretation</h2>
+
+<h3>4.1 Quantitative Segmentation Performance</h3>
+<p>Evaluation was performed on the held-out test split of 25 images (409,600 total evaluated pixels).</p>
+<table>
+    <tr><th>Metric</th><th>Baseline U-Net (d=1)</th><th>Dilated U-Net (d=2, 4)</th><th>Delta</th><th>Relative Gain</th></tr>
+    <tr><td><b>Parameters</b></td><td>1,797,794</td><td>1,797,794</td><td>0</td><td>0.00%</td></tr>
+    <tr><td><b>Background IoU</b></td><td>90.68%</td><td>91.58%</td><td><b>+0.90%</b></td><td>+0.99%</td></tr>
+    <tr><td><b>Pedestrian IoU</b></td><td>57.03%</td><td>59.43%</td><td><b>+2.40%</b></td><td><b>+4.21%</b></td></tr>
+    <tr><td><b>Mean IoU (mIoU)</b></td><td>73.85%</td><td>75.50%</td><td><b>+1.65%</b></td><td><b>+2.23%</b></td></tr>
+    <tr><td><b>Mean Dice (F1)</b></td><td>83.87%</td><td>85.08%</td><td><b>+1.21%</b></td><td>+1.44%</td></tr>
+    <tr><td><b>Pixel Accuracy</b></td><td>91.71%</td><td>92.51%</td><td><b>+0.80%</b></td><td>+0.87%</td></tr>
+</table>
+
+<h3>4.2 Test Set Confusion Matrix Analysis</h3>
+<p>
+<b>Baseline Confusion Matrix (N = 409,600 pixels):</b><br>
+True Negative = 330,534 &nbsp;|&nbsp; False Positive = 21,622 &nbsp;|&nbsp; False Negative = 12,353 &nbsp;|&nbsp; True Positive = 45,091
+</p>
+<p>
+<b>Dilated Bottleneck Confusion Matrix (N = 409,600 pixels):</b><br>
+True Negative = 333,957 &nbsp;|&nbsp; False Positive = 18,199 &nbsp;|&nbsp; False Negative = 12,492 &nbsp;|&nbsp; True Positive = 44,952
+</p>
+<p>
+<b>Interpretation:</b> The primary empirical advantage of the dilated bottleneck is a <b>15.83% reduction in background false alarms</b> (False Positives dropped from 21,622 to 18,199 pixels; 3,423 background pixels correctly reclaimed). In standard convolutions, vertical background structures (utility poles, door frames, tree trunks) trigger false-positive pedestrian activations because their local textures resemble human limbs. Because the dilated bottleneck expands the receptive field from 3&times;3 to 9&times;9 at the 16&times;16 bottleneck, the dilated model observes the broader contextual environment (e.g., ground planes, wall boundaries), successfully suppressing false positives that lack global anatomical continuity.
+</p>
+
+<h3>4.3 Hardware Latency and Computational Complexity</h3>
+<p>Latency benchmarked on an Intel x86_64 host under controlled CPU conditions (batch size = 1, resolution = 128&times;128, 20 warmup runs, 100 benchmark iterations):</p>
+<ul>
+    <li><b>Baseline U-Net (d=1):</b> Mean Latency = 83.54 &plusmn; 12.07 ms, Median = 83.67 ms, P95 = 96.31 ms, Throughput = 11.97 FPS.</li>
+    <li><b>Dilated U-Net (d=2, 4):</b> Mean Latency = 85.99 &plusmn; 9.91 ms, Median = 84.79 ms, P95 = 105.46 ms, Throughput = 11.63 FPS.</li>
+</ul>
+<p>
+<b>Interpretation:</b> The dilated variant incurs a minor +2.45 ms (+2.9%) latency penalty on CPU despite identical FLOPs. This is attributable to non-contiguous memory stride access patterns during atrous sampling, which slightly reduces L1/L2 cache locality compared to unit-stride standard convolutions.
+</p>
+
+<h3>4.4 Training Convergence Curves</h3>
+<div class="figure">
+    <img src="file:///D:/ACV/results/training_curves.png" alt="Training Curves">
+    <div class="figure-caption">Figure 1: Training and Validation Loss / mIoU Convergence Progression.</div>
+</div>
+
+<h3>4.5 Qualitative Visual Comparisons</h3>
+<div class="figure">
+    <img src="file:///D:/ACV/results/qualitative_comparisons.png" alt="Qualitative Comparisons">
+    <div class="figure-caption">Figure 2: Qualitative segmentation comparisons across test samples showing RGB, Ground Truth, Baseline, Dilated, and Error Map.</div>
+</div>
+
+<h3>4.6 Failure Case Diagnostics</h3>
+<div class="figure">
+    <img src="file:///D:/ACV/results/failure_cases_analysis.png" alt="Failure Cases">
+    <div class="figure-caption">Figure 3: Diagnostic analysis of failure modes on lowest-scoring test samples.</div>
+</div>
+<p>
+Diagnostic analysis identifies three primary failure modes: (1) Severe occlusion where overlapping pedestrians merge into an undifferentiated mask, (2) Fast-moving lower limbs blurred against asphalt, and (3) Strong diagonal shadow patterns triggering false edge detections.
+</p>
+
+<h2>5. Conclusion</h2>
+
+<h3>5.1 Summary of Findings</h3>
+<p>
+This study demonstrates that replacing standard bottleneck convolutions with atrous convolutions (d<sub>1</sub>=2, d<sub>2</sub>=4) yields a +1.65% mIoU and +2.40% pedestrian IoU gain without increasing model parameters (strictly 1,797,794 parameters for both models). The empirical gain is primarily driven by contextual suppression of false positives in heterogeneous background regions.
+</p>
+
+<h3>5.2 What the Experiment Does Not Establish</h3>
+<p>In accordance with the assignment specifications, we explicitly state what this experiment does not establish:</p>
+<p>
+1. <b>Generalization Across Domain Shifts:</b> The experiment does not establish whether the dilated advantage persists under severe environmental shifts (adverse rain, night surveillance, or aerial camera angles).<br>
+2. <b>Scale Invariance Across Disparate Distances:</b> The experiment does not establish scale invariance for small pedestrians (&lt; 20 pixels high). Without a multi-scale atrous spatial pyramid (ASPP) or feature pyramid network (FPN), dilation rates d &ge; 4 can bypass very small object features entirely.<br>
+3. <b>Gridding Artifact Resistance on High-Resolution Inputs:</b> At higher spatial resolutions (e.g., 1024 &times; 2048), pure atrous convolutions without Hybrid Dilated Convolution (HDC) smoothing introduce periodic gridding artifacts.<br>
+4. <b>Edge Hardware Acceleration Parity:</b> The latency benchmark reflects general-purpose CPU execution. On specialized edge hardware (micro-NPUs, DSPs), non-unit dilation strides may trigger hardware fallback paths with steeper throughput degradation.
+</p>
+
+<h2>6. References</h2>
+<p>
+1. Long, J., Shelhamer, E., &amp; Darrell, T. (2015). Fully convolutional networks for semantic segmentation. In CVPR, pp. 3431-3440.<br>
+2. Ronneberger, O., Fischer, P., &amp; Brox, T. (2015). U-Net: Convolutional networks for biomedical image segmentation. In MICCAI, pp. 234-241.<br>
+3. Yu, F., &amp; Koltun, V. (2016). Multi-scale context aggregation by dilated convolutions. In ICLR.<br>
+4. Chen, L. C., Papandreou, G., Kokkinos, I., Murphy, K., &amp; Yuille, A. L. (2017). DeepLab: Semantic image segmentation with deep convolutional nets, atrous convolution, and fully connected CRFs. TPAMI, 40(4), 834-848.<br>
+5. Wang, L., Shi, J., Song, G., &amp; Shen, I. F. (2007). Object detection combining recognition and segmentation. In TPAMI.<br>
+6. CS107203CS Course Materials: Advanced Computer Vision, Unit 3: Semantic Segmentation and Reproducible Experimentation.
+</p>
+
+</body>
+</html>
+"""
+
+with open("d:/ACV/23115043.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+edge_exe = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+pdf_path = r"D:\ACV\23115043.pdf"
+
+cmd = [
+    edge_exe,
+    "--headless",
+    "--disable-gpu",
+    "--no-pdf-header-footer",
+    f"--print-to-pdf={pdf_path}",
+    r"file:///D:/ACV/23115043.html"
+]
+
+print("Compiling updated PDF with new header...")
+subprocess.run(cmd, check=True)
+print("PDF successfully updated at:", pdf_path)
