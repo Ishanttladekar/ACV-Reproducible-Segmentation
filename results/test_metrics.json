@@ -1,0 +1,58 @@
+{
+  "baseline": {
+    "parameters": 1797794,
+    "metrics": {
+      "per_class_iou": {
+        "class_0": 0.9067924248783981,
+        "class_1": 0.5702957023246402
+      },
+      "miou": 0.7385440636015191,
+      "per_class_dice": {
+        "class_0": 0.951118132259443,
+        "class_1": 0.7263545349839317
+      },
+      "mean_dice": 0.8387363336216873,
+      "pixel_accuracy": 0.91705322265625,
+      "confusion_matrix": [
+        [
+          330534,
+          21622
+        ],
+        [
+          12353,
+          45091
+        ]
+      ]
+    }
+  },
+  "dilated": {
+    "parameters": 1797794,
+    "metrics": {
+      "per_class_iou": {
+        "class_0": 0.9158339000899498,
+        "class_1": 0.5942651666380233
+      },
+      "miou": 0.7550495333639866,
+      "per_class_dice": {
+        "class_0": 0.9560681644133666,
+        "class_1": 0.7455035449230897
+      },
+      "mean_dice": 0.8507858546682281,
+      "pixel_accuracy": 0.92507080078125,
+      "confusion_matrix": [
+        [
+          333957,
+          18199
+        ],
+        [
+          12492,
+          44952
+        ]
+      ]
+    }
+  },
+  "delta": {
+    "miou_gain": 1.65,
+    "pedestrian_iou_gain": 2.4
+  }
+}

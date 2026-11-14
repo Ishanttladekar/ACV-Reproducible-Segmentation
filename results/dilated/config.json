@@ -1,0 +1,26 @@
+{
+  "model_type": "dilated",
+  "seed": 42,
+  "resolution": [
+    128,
+    128
+  ],
+  "batch_size": 8,
+  "optimizer": "AdamW (lr=0.001, weight_decay=0.0001)",
+  "scheduler": "CosineAnnealingLR (T_max=5, eta_min=1e-5)",
+  "loss": "Combined CrossEntropy (0.5) + Dice Loss (0.5)",
+  "augmentations": "RandomHorizontalFlip(p=0.5), RandomRotation(-10..+10 deg), ColorJitter(+-0.15)",
+  "stopping_rule": "Max epochs 5 with early stopping patience=3",
+  "parameters": {
+    "total_parameters": 1797794,
+    "trainable_parameters": 1797794
+  },
+  "environment": {
+    "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "pytorch_version": "2.15.0+cpu",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
+    "device": "cpu",
+    "cpu_count": 8
+  }
+}

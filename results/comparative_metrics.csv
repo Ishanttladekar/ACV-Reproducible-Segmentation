@@ -1,0 +1,3 @@
+Architecture,Parameters,Background IoU (%),Pedestrian IoU (%),mIoU (%),Mean Dice (%),Pixel Accuracy (%)
+Baseline U-Net (d=1),1797794,90.68,57.03,73.85,83.87,91.71
+"Dilated U-Net (d=2, 4)",1797794,91.58,59.43,75.5,85.08,92.51

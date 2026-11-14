@@ -1,0 +1,36 @@
+{
+  "conditions": {
+    "device": "cpu",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
+    "cpu_threads": 6,
+    "input_resolution": "128x128",
+    "batch_size": 1,
+    "warmup_runs": 20,
+    "benchmark_runs": 100
+  },
+  "baseline": {
+    "mean_latency_ms": 83.54,
+    "std_latency_ms": 12.07,
+    "median_latency_ms": 83.67,
+    "p95_latency_ms": 96.31,
+    "throughput_fps": 11.97,
+    "total_parameters": 1797794,
+    "warmup_runs": 20,
+    "benchmark_runs": 100,
+    "batch_size": 1,
+    "input_resolution": "128x128"
+  },
+  "dilated": {
+    "mean_latency_ms": 85.99,
+    "std_latency_ms": 9.91,
+    "median_latency_ms": 84.79,
+    "p95_latency_ms": 105.46,
+    "throughput_fps": 11.63,
+    "total_parameters": 1797794,
+    "warmup_runs": 20,
+    "benchmark_runs": 100,
+    "batch_size": 1,
+    "input_resolution": "128x128"
+  }
+}
